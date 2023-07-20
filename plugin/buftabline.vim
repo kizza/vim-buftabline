@@ -36,12 +36,14 @@ hi default link BufTabLineFill            TabLineFill
 hi default link BufTabLineModifiedCurrent BufTabLineCurrent
 hi default link BufTabLineModifiedActive  BufTabLineActive
 hi default link BufTabLineModifiedHidden  BufTabLineHidden
+hi default link BufTabLineModifiedChar    BufTabLineModified
 
 let g:buftabline_numbers    = get(g:, 'buftabline_numbers',    0)
 let g:buftabline_indicators = get(g:, 'buftabline_indicators', 0)
 let g:buftabline_separators = get(g:, 'buftabline_separators', 0)
 let g:buftabline_show       = get(g:, 'buftabline_show',       2)
 let g:buftabline_plug_max   = get(g:, 'buftabline_plug_max',  10)
+let g:buftabline_modified_char = get(g:, 'buftabline_modified_char', '+')
 
 function! buftabline#user_buffers() " help buffers are always unlisted, but quickfix buffers are not
 	return filter(range(1,bufnr('$')),'buflisted(v:val) && "quickfix" !=? getbufvar(v:val, "&buftype")')
@@ -76,7 +78,7 @@ function! buftabline#render()
 	let screen_num = 0
 	for bufnum in bufnums
 		let screen_num = show_num ? bufnum : show_ord ? screen_num + 1 : ''
-		let tab = { 'num': bufnum, 'pre': '' }
+		let tab = { 'num': bufnum, 'pre': '', 'post': '' }
 		let tab.hilite = currentbuf == bufnum ? 'Current' : bufwinnr(bufnum) > 0 ? 'Active' : 'Hidden'
 		if currentbuf == bufnum | let [centerbuf, s:centerbuf] = [bufnum, bufnum] | endif
 		let bufpath = bufname(bufnum)
@@ -85,11 +87,14 @@ function! buftabline#render()
 			let tab.sep = strridx(tab.path, s:dirsep, strlen(tab.path) - 2) " keep trailing dirsep
 			let tab.label = tab.path[tab.sep + 1:]
 			let pre = screen_num
+			let post = ''
 			if getbufvar(bufnum, '&mod')
 				let tab.hilite = 'Modified' . tab.hilite
-				if show_mod | let pre = '+' . pre | endif
+				" if show_mod | let pre = '+' . pre | endif
+				if show_mod | let post = post . g:buftabline_modified_char | endif
 			endif
 			if strlen(pre) | let tab.pre = pre . ' ' | endif
+			if strlen(post) | let tab.post = post . ' ' | endif
 			let tabs_per_tail[tab.label] = get(tabs_per_tail, tab.label, 0) + 1
 			let path_tabs += [tab]
 		elseif -1 < index(['nofile','acwrite'], getbufvar(bufnum, '&buftype')) " scratch buffer
@@ -123,7 +128,7 @@ function! buftabline#render()
 	let currentside = lft
 	let lpad_width = strwidth(lpad)
 	for tab in tabs
-		let tab.width = lpad_width + strwidth(tab.pre) + strwidth(tab.label) + 1
+		let tab.width = lpad_width + strwidth(tab.pre) + strwidth(tab.label) + strwidth(tab.post) + 1
 		let tab.label = lpad . tab.pre . substitute(strtrans(tab.label), '%', '%%', 'g') . ' '
 		if centerbuf == tab.num
 			let halfwidth = tab.width / 2
@@ -161,6 +166,11 @@ function! buftabline#render()
 	endif
 
 	if len(tabs) | let tabs[0].label = substitute(tabs[0].label, lpad, ' ', '') | endif
+
+	for tab in tabs
+		let tab.label = tab.label . tab.post
+		" let tab.label = tab.label . "%#BufTabLine".tab.hilite."Modified#" . tab.post
+	endfor
 
 	let swallowclicks = '%'.(1 + tabpagenr('$')).'X'
 	return s:tablineat
